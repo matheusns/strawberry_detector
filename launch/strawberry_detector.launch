@@ -1,0 +1,9 @@
+<launch>
+
+	    <!-- Defines the logging level output -->
+    <env name="ROSCONSOLE_CONFIG_FILE" value="$(find strawberry_detector)/config/rosconsole.conf"/>
+
+	<group ns="/stw_detector">
+		<node name="img_proc_node" pkg="strawberry_detector" type="detector.py" output = "screen" />
+	</group>
+</launch>
