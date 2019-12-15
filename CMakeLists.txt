@@ -10,9 +10,20 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   sensor_msgs
   std_msgs
+  message_generation
 )
 
 find_package(OpenCV 3 REQUIRED)
+
+add_service_files(
+  FILES
+  StwPose.srv
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 catkin_package(
 )

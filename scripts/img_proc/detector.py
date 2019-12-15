@@ -32,34 +32,36 @@
 # Professor: Wouter Caarls
 # Students: Matheus do Nascimento Santos 1920858  (@matheusns)
 #           Luciana Reys 1920856 (@lsnreys)
+
 # OpenCV modules
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
+
 # Ros modules
 import rospy
-from geometry_msgs.msg import Pose2D, TransformStamped
 from sensor_msgs.msg import Image, JointState, CameraInfo
-from std_msgs.msg import Float64
-from image_geometry import PinholeCameraModel
-from tf2_geometry_msgs import PointStamped, Vector3Stamped
-import tf2_ros
+from strawberry_detector.srv import StwPose, StwPoseResponse
+
 # Other modules
 import sys
 import numpy as np
 import img_proc
 
+
 def nothing(x):
-   pass
+    pass
+
 
 class StrawberryDetector:
     def __init__(self):
         rospy.init_node('img_proc_node')
-        self.initMembersVariables()
-        self.initROSChannels()
-        self.detectStrawberries()
+        self.init_members_variables()
+        self.init_ros_channels()
+        rospy.spin()
+        # self.img_debug()
         # self.calibrate_img()
 
-    def initMembersVariables(self):
+    def init_members_variables(self):
         self.debug = False
         self.bridge = CvBridge()
         self.cv_image = None
@@ -72,9 +74,11 @@ class StrawberryDetector:
         self.MAXIMUM_VALUE = "MAXIMUM_VALUE"
         self.ADJUSTMENT_WINDOW = "FINAL OUTPUT"
 
-    def initROSChannels(self):
-        self.image_sub = rospy.Subscriber("gpg/image", Image, self.callback, queue_size=1)
-        self.camera_info_sub = rospy.Subscriber('gpg/camera_info', CameraInfo, self.cameraInfoCallback)
+    def init_ros_channels(self):
+        self.image_sub = rospy.Subscriber("/img_acquistion/camera/image", Image, self.callback, queue_size=1)
+        self.service_server = rospy.Service('img_proc', StwPose, self.detect_strawberries)
+        # todo Add camera info structure
+        # self.camera_info_sub = rospy.Subscriber('gpg/camera_info', CameraInfo, self.cameraInfoCallback)
 
     def callback(self, msg):
         rospy.logdebug("Received an image!")
@@ -82,16 +86,17 @@ class StrawberryDetector:
             self.cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
 
             if (self.debug):
+                print "Here"
                 cv2.namedWindow(self.ADJUSTMENT_WINDOW, cv2.WINDOW_NORMAL)
-                resized_image = cv2.resize(self.cv_image, (640, 360))
-                cv2.imshow(self.ADJUSTMENT_WINDOW, resized_image)
+                cv2.imshow(self.ADJUSTMENT_WINDOW, self.cv_image)
                 cv2.waitKey(1)
 
         except CvBridgeError, e:
             print(e)
 
-    def cameraInfoCallback(self, msg):
-        self.model.fromCameraInfo(msg)
+    # todo Add camera info structure
+    # def cameraInfoCallback(self, msg):
+    #     self.model.fromCameraInfo(msg)
 
     def calibrate_img(self):
         rate = rospy.Rate(30)
@@ -105,7 +110,7 @@ class StrawberryDetector:
         cv2.createTrackbar(self.MAXIMUM_VALUE, self.ADJUSTMENT_WINDOW, 0, 255, nothing)
 
         while not rospy.is_shutdown():
-            rospy.wait_for_message("gpg/image", Image)
+            rospy.wait_for_message("/img_acquistion/camera/image", Image)
             hMin = cv2.getTrackbarPos(self.MINIMUM_HUE, self.ADJUSTMENT_WINDOW)
             hMax = cv2.getTrackbarPos(self.MAXIMUM_HUE, self.ADJUSTMENT_WINDOW)
             sMin = cv2.getTrackbarPos(self.MINIMUM_SATURATION, self.ADJUSTMENT_WINDOW)
@@ -126,7 +131,6 @@ class StrawberryDetector:
 
             mask = cv2.inRange(hsv_image, lower, upper)
             mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-            # output = cv2.bitwise_and(self.cv_image, self.cv_image, mask=mask)
 
             temp = np.vstack([np.hstack([self.cv_image, hsv_image, mask])])
             resized_image = cv2.resize(temp, (640, 360))
@@ -135,41 +139,35 @@ class StrawberryDetector:
 
             rate.sleep()
 
-    def isThereAStw(self, img):
-        if img is not None:
-            mask, _ = img_proc.process_img(img)
-            M = cv2.moments(mask)
-            if M["m00"] != 0:
-                return True
-            else:
-                return False
-        else:
-            return False
-
-    def detectStrawberries (self):
-        rate = rospy.Rate(5)
-        kp = 0.0004
+    def detect_strawberries(self, req):
+        rate = rospy.Rate(15)
+        count = 0
         while not rospy.is_shutdown():
             current_img = self.cv_image
             if current_img is not None:
-                mask, hsv_image = img_proc.process_img(current_img)
-                rgb_bounded = current_img
-                if self.isThereAStw(current_img):
-                    _, mask, hsv_image, _ = self.define_center_mass(current_img)
-                    rgb_bounded, bb_boundaries = img_proc.plot_bounding_box(mask, current_img)
+                segmented_img = img_proc.process_img(current_img)
+                output, boundaries = img_proc.plot_bounding_box(segmented_img, current_img)
+                return StwPoseResponse(boundaries[0], boundaries[1])
 
-                mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-                temp = np.vstack([np.hstack([current_img, hsv_image, mask, rgb_bounded])])
-                resized_image = cv2.resize(temp, (320, 180))
-                cv2.namedWindow(self.ADJUSTMENT_WINDOW, cv2.WINDOW_NORMAL)
-                cv2.imshow(self.ADJUSTMENT_WINDOW, resized_image)
-                key = cv2.waitKey(1)
-                rate.sleep()
+    def img_debug(self):
+            rate = rospy.Rate(15)
+            count = 0
+            while not rospy.is_shutdown():
+                current_img = self.cv_image
+                if current_img is not None:
+                    segmented_img = img_proc.process_img(current_img)
+                    output, boundaries = img_proc.plot_bounding_box(segmented_img, current_img)
+
+                    cv2.namedWindow(self.ADJUSTMENT_WINDOW, cv2.WINDOW_NORMAL)
+                    cv2.imshow(self.ADJUSTMENT_WINDOW, output)
+                    key = cv2.waitKey(1)
+                    rate.sleep()
 
 
 def main(args):
     main_app = StrawberryDetector()
     cv2.destroyAllWindows()
+
 
 if __name__ == '__main__':
     main(sys.argv)
