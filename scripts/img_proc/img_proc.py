@@ -108,8 +108,9 @@ def plot_bounding_box(src, rgb):
     color = (0, 0, 255)
     rgb_bounded = rgb.copy()
     tmp = cv2.rectangle(rgb_bounded, (x, y), (x + w, y + h), color, 3)
+    center = [(x + w) / 2, (y + h) / 2]
 
-    return rgb_bounded, box_coordinates
+    return rgb_bounded, box_coordinates, center
 
 
 # Defines the most upper left bounding box

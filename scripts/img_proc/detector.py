@@ -57,8 +57,8 @@ class StrawberryDetector:
         rospy.init_node('img_proc_node')
         self.init_members_variables()
         self.init_ros_channels()
-        rospy.spin()
-        # self.img_debug()
+        # rospy.spin()
+        self.img_debug()
         # self.calibrate_img()
 
     def init_members_variables(self):
@@ -146,7 +146,7 @@ class StrawberryDetector:
             current_img = self.cv_image
             if current_img is not None:
                 segmented_img = img_proc.process_img(current_img)
-                output, boundaries = img_proc.plot_bounding_box(segmented_img, current_img)
+                output, boundaries, center = img_proc.plot_bounding_box(segmented_img, current_img)
                 return StwPoseResponse(boundaries[0], boundaries[1])
 
     def img_debug(self):
@@ -156,7 +156,7 @@ class StrawberryDetector:
                 current_img = self.cv_image
                 if current_img is not None:
                     segmented_img = img_proc.process_img(current_img)
-                    output, boundaries = img_proc.plot_bounding_box(segmented_img, current_img)
+                    output, boundaries, _ = img_proc.plot_bounding_box(segmented_img, current_img)
 
                     cv2.namedWindow(self.ADJUSTMENT_WINDOW, cv2.WINDOW_NORMAL)
                     cv2.imshow(self.ADJUSTMENT_WINDOW, output)
